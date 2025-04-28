@@ -1,0 +1,66 @@
+{
+  "name": "voicegpt",
+  "version": "1.0.0",
+  "author": "Lütfü Öğretici",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mogretici/voicegpt/issues"
+  },
+  "homepage": "https://github.com/mogretici/voicegpt#readme",
+  "keywords": [
+    "react",
+    "voice assistant",
+    "gpt",
+    "openai",
+    "whisper",
+    "text-to-speech",
+    "speech recognition",
+    "typescript",
+    "react component",
+    "barge-in"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mogretici/voicegpt.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "description": "A real-time, barge-in enabled voice AI assistant React component using OpenAI Whisper, GPT-3.5, and TTS.",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "private": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.8.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.4.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.3.1",
+    "vite-plugin-dts": "^4.5.3",
+    "vite-plugin-lib-inject-css": "^2.2.2"
+  },
+  "scripts": {
+    "build": "vite build",
+    "publish:npm": "npm publish --access public",
+    "publish:github": "npm publish --registry=https://npm.pkg.github.com"
+  }
+}
