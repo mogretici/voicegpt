@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, ReactNode } from 'react';
 
-// Types and interfaces
 export interface VoiceGPTChildrenRenderProps {
     recording: boolean;
     question: string;
@@ -22,16 +21,15 @@ export interface VoiceGPTProps {
     whisperModel?: string;
     ttsModel?: string;
     ttsVoice?: string;
+    greetingMessage?: string;
     onError?: (err: Error) => void;
     children: (props: VoiceGPTChildrenRenderProps) => ReactNode;
 }
-// Constants
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
-// Main component
 export const VoiceGPT: React.FC<VoiceGPTProps> = ({
                                                       apiKey,
-                                                      systemPrompt = "Sen yardımcı bir asistansın.",
+                                                      systemPrompt = "You are a helpful assistant.",
                                                       silenceThreshold = -25,
                                                       silenceTimeout = 1500,
                                                       minSpeechDuration = 500,
@@ -40,6 +38,7 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
                                                       whisperModel = "whisper-1",
                                                       ttsModel = "tts-1",
                                                       ttsVoice = "nova",
+                                                      greetingMessage = "Hello, how can I help you?",
                                                       onError,
                                                       children,
                                                   })=> {
@@ -66,27 +65,26 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
 
     const logDebug = (message: string) => {
         if (debugMode) {
-            console.log(`[VoiceGPT Debug] ${message}`);
+            console.log(`[VoiceGPT Debug]: ${message}`);
         }
     };
 
     useEffect(() => {
         audioElementRef.current = new Audio();
 
-        // AudioContext için dinleyici ekleme
         audioElementRef.current.addEventListener('play', () => {
             speechInProgressRef.current = true;
-            logDebug("Asistan konuşmaya başladı");
+            logDebug("The assistant started speaking");
         });
 
         audioElementRef.current.addEventListener('ended', () => {
             speechInProgressRef.current = false;
-            logDebug("Asistan konuşması bitti");
+            logDebug("The assistant finished speaking");
         });
 
         audioElementRef.current.addEventListener('pause', () => {
             speechInProgressRef.current = false;
-            logDebug("Asistan konuşması duraklatıldı");
+            logDebug("The assistant paused speaking");
         });
 
         return () => {
@@ -95,7 +93,6 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
     }, []);
 
     const cleanupResources = () => {
-        // Tüm kaynakları temizle
         if (audioElementRef.current) {
             audioElementRef.current.pause();
             audioElementRef.current = null;
@@ -104,14 +101,12 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
         stopSilenceDetection();
         stopRecording();
 
-        // AudioContext ve ilişkili kaynakları temizle
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             audioContextRef.current.close();
             audioContextRef.current = null;
         }
         analyserRef.current = null;
 
-        // Mikrofon akışını kapat
         if (microphoneStreamRef.current) {
             microphoneStreamRef.current.getTracks().forEach(track => track.stop());
             microphoneStreamRef.current = null;
@@ -127,14 +122,12 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
         setIsLoading(false);
     };
 
-    // Ses seviyesi algılama için yardımcı fonksiyon
     const getAudioLevel = (): number => {
         const analyser = analyserRef.current;
         if (!analyser) return -100;
         const bufferLength = analyser.fftSize;
         const data = new Uint8Array(bufferLength);
         analyser.getByteTimeDomainData(data);
-        // normalize ve RMS
         let sumSq = 0;
         for (let i = 0; i < bufferLength; i++) {
             const x = (data[i] - 128) / 128;
@@ -150,7 +143,6 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
             stopSilenceDetection();
         }
 
-        // Başlangıç değerlerini sıfırla
         silenceStartTimeRef.current = null;
         speechStartTimeRef.current = null;
         hasSpokenRef.current = false;
@@ -161,34 +153,26 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
             const audioLevel = getAudioLevel();
 
             if (debugMode) {
-                // Her zaman değil, ama belirli aralıklarla ses düzeyini logla
                 if (Date.now() % 200 < 100) {
                     logDebug(`[VoiceGPT] audio dB: ${audioLevel.toFixed(2)} dB`);
                 }
             }
 
-            // Ses düzeyi eşiğin üstündeyse (konuşma var)
             if (audioLevel > silenceThreshold) {
-                // Konuşma başlangıç zamanını kaydet
                 if (speechStartTimeRef.current === null) {
                     speechStartTimeRef.current = Date.now();
-                    logDebug("Konuşma başladı");
+                    logDebug("Conversation started");
                 }
 
-                // Konuşma algılandı işareti
                 hasSpokenRef.current = true;
 
-                // Sessizlik süresini sıfırla
                 silenceStartTimeRef.current = null;
             }
-            // Ses düzeyi eşiğin altındaysa (sessizlik var)
             else {
-                // İlk kez sessizlik algılandıysa başlangıç zamanını kaydet
                 if (silenceStartTimeRef.current === null) {
                     silenceStartTimeRef.current = Date.now();
                 }
 
-                // Yeterli konuşma olmuş ve ardından belirlenen süreden uzun sessizlik varsa kaydı durdur
                 const hasMinimumSpeech = speechStartTimeRef.current !== null &&
                     (Date.now() - speechStartTimeRef.current > minSpeechDuration);
 
@@ -196,34 +180,28 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
                     (Date.now() - silenceStartTimeRef.current > silenceTimeout);
 
                 if (hasSpokenRef.current && hasMinimumSpeech && hasSilenceDuration) {
-                    logDebug(`Konuşma bitti. Konuşma süresi: ${speechStartTimeRef.current ? (Date.now() - speechStartTimeRef.current) : 0}ms, Sessizlik süresi: ${silenceStartTimeRef.current ? (Date.now() - silenceStartTimeRef.current) : 0}ms`);
+                    logDebug(`The conversation is over. Talk time: ${speechStartTimeRef.current ? (Date.now() - speechStartTimeRef.current) : 0}ms, Silence duration: ${silenceStartTimeRef.current ? (Date.now() - silenceStartTimeRef.current) : 0}ms`);
                     processingAudioRef.current = true;
                     await processAudioAndGetResponse();
                 }
             }
 
-            // Konuşma devam ederken kullanıcı konuşmaya başlarsa
             if (speechInProgressRef.current && audioLevel > silenceThreshold) {
-                logDebug("Barge-in: kullanıcı konuşuyor, asistan kesiliyor ve kayıt başlatılıyor");
+                logDebug("Barge-in: user speaks, assistant interrupts and starts recording");
 
-                // 1) TTS’i durdur
                 if (audioElementRef.current) {
                     audioElementRef.current.pause();
                     audioElementRef.current.currentTime = 0;
                 }
                 speechInProgressRef.current = false;
 
-                // 2) Mevcut algılamayı durdur
                 stopSilenceDetection();
 
-                // 3) Önceki audioChunks’u temizle (tercihe bağlı)
                 audioChunksRef.current = [];
 
-                // 4) Yeni konuşma kaydını başlat
                 processingAudioRef.current = false;
                 await startRecording();
 
-                // 5) Bu döngü iterasyonunu sonlandır
                 return;
             }
         }, 100);
@@ -255,7 +233,6 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
 
             microphoneStreamRef.current = stream;
 
-            // AudioContext ve Analyser oluştur
             if (!audioContextRef.current) {
                 audioContextRef.current = new AudioContext();
             }
@@ -265,8 +242,8 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
             }
 
             analyserRef.current = audioContextRef.current.createAnalyser();
-            analyserRef.current.fftSize = 512; // Daha hassas frekans analizi için
-            analyserRef.current.smoothingTimeConstant = 0; // Daha yumuşak geçişler
+            analyserRef.current.fftSize = 512;
+            analyserRef.current.smoothingTimeConstant = 0;
             analyserRef.current.minDecibels = -90;
             analyserRef.current.maxDecibels = -10
 
@@ -288,8 +265,8 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
 
             mediaRecorder.onstart = () => {
                 setRecording(true);
-                recordingRef.current = true;      // ref’i de güncelle
-                logDebug("Kayıt başladı");
+                recordingRef.current = true;
+                logDebug("Recording has started");
                 startSilenceDetection();
             };
 
@@ -297,9 +274,8 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
                 setRecording(false);
                 recordingRef.current = false;
                 stopSilenceDetection();
-                logDebug("Kayıt durduruldu");
+                logDebug("Recording has stopped");
 
-                // Mikrofon akışını durdur
                 if (microphoneStreamRef.current) {
                     microphoneStreamRef.current.getTracks().forEach(track => track.stop());
                 }
@@ -322,21 +298,17 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
         setIsLoading(true);
         processingAudioRef.current = true;
 
-        // 1) Önce recorder’ı durdur, bu ondataavailable tetikler:
         stopRecording();
 
-        // 2) Kısa bir gecikme ver (ondataavailable’ın gelmesi için)
         await new Promise(res => setTimeout(res, 100));
 
-        // 3) Blob’u oluştur:
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        audioChunksRef.current = []; // temizle
+        audioChunksRef.current = [];
 
-        logDebug(`Oluşan blob boyutu: ${(audioBlob.size/1024).toFixed(2)} KB`);
+        logDebug(`The resulting blob size is: ${(audioBlob.size/1024).toFixed(2)} KB`);
 
-        // 4) Eğer blob çok küçükse, yeniden dinlemeye başla:
-        if (audioBlob.size < 5000) {  // ~5 KB eşik
-            logDebug("Çok kısa kayıt, yeniden dinleniyor");
+        if (audioBlob.size < 5000) {
+            logDebug("The audio blob is too small, skipping processing");
             processingAudioRef.current = false;
             setIsLoading(false);
             await startRecording();
@@ -344,24 +316,20 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
         }
 
         try {
-            // 5) Transkripsiyon
             const transcription = await transcribeAudio(audioBlob);
             setQuestion(transcription);
 
-            // 6) GPT cevabı
             const updated = [...conversationHistory, { role: "user", content: transcription }];
             setConversationHistory(updated);
             const gpt = await getGPTResponse(updated);
             setResponse(gpt);
             setConversationHistory([...updated, { role: "assistant", content: gpt }]);
 
-            // 7) Barge-in için mikrofonu hemen aç
             processingAudioRef.current = false;
            await startRecording();
 
-            // 8) TTS
             await textToSpeech(gpt);
-            logDebug("TTS bitti, dinlemeye devam ediliyor");
+            logDebug("TTS is over, listening continues.");
         } catch (err) {
             handleError(err as Error);
             processingAudioRef.current = false;
@@ -441,7 +409,6 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
 
                 if (audioElementRef.current) {
                     startSilenceDetection();
-                    // Configure audio element
                     audioElementRef.current.src = audioUrl;
                     audioElementRef.current.onended = () => {
                         speechInProgressRef.current = false;
@@ -449,11 +416,10 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
                     };
                     audioElementRef.current.onerror = (e) => {
                         speechInProgressRef.current = false;
-                        console.log("Ses dosyası yüklenirken hata:", e);
+                        logDebug(`Audio playback error: ${e}`);
                         reject(new Error("Audio playback error",));
                     };
 
-                    // Start playback
                     audioElementRef.current.play().catch(err => {
                         speechInProgressRef.current = false;
                         reject(err);
@@ -472,12 +438,10 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
         if (recording || processingAudioRef.current) {
             stopInteraction();
         } else {
-            // Add greeting if it's the first interaction
-            if (conversationHistory.length === 1) { // Only system prompt exists
-                const greeting = "Merhaba, nasıl yardımcı olabilirim?";
-                setResponse(greeting);
-                await textToSpeech(greeting).catch(err => {
-                    logDebug(`Karşılama mesajı seslendirilirken hata: ${err.message}`);
+            if (conversationHistory.length === 1) {
+                setResponse(greetingMessage);
+                await textToSpeech(greetingMessage).catch(err => {
+                    logDebug(`Error while voicing welcome message: ${err.message}`);
                 });
             }
             await startRecording();
@@ -517,40 +481,33 @@ export const VoiceGPT: React.FC<VoiceGPTProps> = ({
     );
 };
 
-// Export a hook to use the VoiceGPT component
 export function useVoiceGPT(props: Omit<VoiceGPTProps, 'children'>) {
     const [recording, setRecording] = useState(false);
     const [question, setQuestion] = useState("");
     const [response, setResponse] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    // Create a ref to a VoiceGPT instance's methods
     const voiceGPTRef = useRef<{
         startInteraction: () => void;
         stopInteraction: () => void;
         onError: (err: Error) => void;
     } | null>(null);
 
-    // Render prop that will receive the VoiceGPT instance's methods
     const renderProp = (renderProps: VoiceGPTChildrenRenderProps) => {
-        // Update local state to match the VoiceGPT instance's state
         setRecording(renderProps.recording);
         setQuestion(renderProps.question);
         setResponse(renderProps.response);
         setIsLoading(renderProps.isLoading);
 
-        // Store the VoiceGPT instance's methods in the ref
         voiceGPTRef.current = {
             startInteraction: renderProps.startInteraction,
             stopInteraction: renderProps.stopInteraction,
             onError: renderProps.onError
         };
 
-        // Return null since we don't want to render anything here
         return null;
     };
 
-    // Methods to expose to consumers of the hook
     const startInteraction = () => {
         if (voiceGPTRef.current) {
             voiceGPTRef.current.startInteraction();
@@ -570,11 +527,9 @@ export function useVoiceGPT(props: Omit<VoiceGPTProps, 'children'>) {
     };
 
     return {
-        // VoiceGPT instance to render (hidden)
         VoiceGPTInstance: (
             <VoiceGPT {...props} children={renderProp} />
         ),
-        // State and methods to expose
         recording,
         question,
         response,
